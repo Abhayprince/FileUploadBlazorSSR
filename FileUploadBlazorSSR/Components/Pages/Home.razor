@@ -1,0 +1,80 @@
+﻿@page "/"
+
+@inject IWebHostEnvironment WebHotEnv
+
+<PageTitle>Home</PageTitle>
+
+<h1>File Upload with Blazor SSR Enhanced Form</h1>
+
+<div class="container d-flex">
+    <div class="col-sm-4 mx-auto">
+        <EditForm Model="Model" enctype="multipart/form-data" Enhance FormName="file-form" OnSubmit="SaveFileModelAsync">
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText @bind-Value="Model.Name" class="form-control" />
+            </div>
+             <div class="mb-3">
+                 <label class="form-label">File</label>
+                 <InputFile name="Model.File" class="form-control" />
+             </div>
+             <div class="mb-3">
+                 <input type="submit" class="btn btn-sm btn-success" value="Submit"/>
+             </div>
+        </EditForm>
+         @if (!string.IsNullOrWhiteSpace(_uploadedImageUrl))
+        {
+            <img src="@_uploadedImageUrl" class="img-fluid" />
+        }
+    </div>
+</div>
+
+@code{
+    [SupplyParameterFromForm(FormName = "file-form")]
+    private FileModel Model { get; set; } = new();
+
+    private string? _uploadedImageUrl;
+
+    private static readonly HashSet<string> _imageExtension = new HashSet<string>([".jpg", ".jpeg", ".png", ".gif", ".webp"], StringComparer.OrdinalIgnoreCase);
+
+    private async Task SaveFileModelAsync()
+    {
+        var file = Model.File;
+        var folderPath = Path.Combine(WebHotEnv.WebRootPath, "uploads");
+        Directory.CreateDirectory(folderPath);
+
+        // We should not trust the file name provided by the user (file.FileName)
+        // Instead, we should generate a new file name
+        // and use the file extension from the original file name
+        // Having this unsafe file.FileName for the sake of simplicity of this example
+        var filePath = Path.Combine(folderPath, file.FileName);
+
+        try
+        {
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                using var uploadedFileStream = file.OpenReadStream();
+                await uploadedFileStream.CopyToAsync(fileStream);
+
+                var extension = Path.GetExtension(file.FileName);
+
+                // Check if the file is an image
+                if (_imageExtension.Contains(extension))
+                {
+                    // We can only show the image in the UI using an <img> tag
+                    // other extensions are not supported by html
+                    _uploadedImageUrl = $"/uploads/{file.FileName}";                    
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private class FileModel
+    {
+        public string Name { get; set; }
+        public IFormFile File{ get; set; }
+    }
+}
